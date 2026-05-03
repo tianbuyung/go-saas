@@ -1,0 +1,62 @@
+# Binaries
+/bin/
+/build/
+/dist/
+/tmp/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binaries & coverage
+*.test
+*.out
+coverage.*
+*.cover
+
+# Go workspace / modules
+go.work
+go.work.sum
+
+# Dependency directories (if not using Go modules)
+vendor/
+
+# Environment variables
+.env
+.env.*
+!.env.example
+
+# Logs
+*.log
+
+# IDE / Editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker
+docker-compose.override.yml
+
+# Generated files
+*.gen.go
+*.generated.go
+
+# Build cache
+.cache/
+
+# Misc
+*.pid
+*.seed
+
+# Optional: Ignore SQLC generated code if you want
+# internal/db/*.go
+
+# Optional: Ignore migrations if generated
+# migrations/*.sql
