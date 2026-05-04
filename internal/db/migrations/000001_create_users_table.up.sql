@@ -1,4 +1,5 @@
 -- migrations/000001_create_users_table.up.sql
+BEGIN;
 
 CREATE TABLE users (
   id BIGSERIAL PRIMARY KEY,
@@ -29,3 +30,5 @@ WHERE provider IS NOT NULL AND provider_id IS NOT NULL;
 
 CREATE INDEX idx_users_email
 ON users (LOWER(email));
+
+COMMIT;

@@ -1,28 +1,43 @@
 package main
 
 import (
-	"context"
 	"strings"
 
 	"saas/internal/config"
 	"saas/internal/db"
+	"saas/internal/handler"
+	"saas/internal/iam"
+	"saas/internal/middleware"
+	"saas/internal/service"
 	"saas/pkg/logger"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/zap"
 )
 
 func main() {
 	cfg := config.Load()
 	log := logger.New()
+
 	dbPoolConn := db.NewPool(cfg.DBPoolUrl)
+	defer dbPoolConn.Close()
+
+	if cfg.Env == "production" {
+		gin.SetMode(gin.ReleaseMode)
+	} else {
+		gin.SetMode(gin.DebugMode)
+	}
 
 	r := gin.New()
-	proxies := strings.Split(cfg.TrustedProxies, ",")
+
+	var proxies []string
+	if cfg.TrustedProxies != "" {
+		proxies = strings.Split(cfg.TrustedProxies, ",")
+	}
+	r.SetTrustedProxies(proxies)
 
 	r.Use(gin.Recovery())
-	r.SetTrustedProxies(proxies)
+	r.Use(middleware.ZapLogger(log))
 
 	r.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{
@@ -31,28 +46,21 @@ func main() {
 		})
 	})
 
-	log.Info("server running on :" + cfg.Port)
-
 	queries := db.New(dbPoolConn)
+	jwt := iam.NewJWT(cfg.JWTSecret, cfg.JWTExpireHours)
 
-	user, err := queries.CreateUser(context.Background(), db.CreateUserParams{
-		Email: "test@mail.com",
-		Password: pgtype.Text{
-			String: "123", Valid: true,
-		},
-		Provider: pgtype.Text{
-			Valid: false,
-		},
-		ProviderID: pgtype.Text{
-			Valid: false,
-		},
-	})
+	iamService := service.NewIamService(queries, jwt)
+	iamHandler := handler.NewIamHandler(iamService)
 
-	if err != nil {
-		log.Fatal("failed to create user", zap.Error(err))
+	r.POST("/register", iamHandler.Register)
+	r.POST("/login", iamHandler.Login)
+
+	log.Info("server running",
+		zap.String("port", cfg.Port),
+		zap.String("env", cfg.Env),
+	)
+
+	if err := r.Run(":" + cfg.Port); err != nil {
+		log.Fatal("server failed", zap.Error(err))
 	}
-
-	log.Info("user created", zap.Any("user", user))
-
-	r.Run(":" + cfg.Port)
 }
