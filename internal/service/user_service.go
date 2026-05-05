@@ -14,6 +14,6 @@ func NewUserService(r repository.UserRepository) *UserService {
 	return &UserService{repo: r}
 }
 
-func (s *UserService) GetMe(ctx context.Context, userID int64) (*domain.User, error) {
-	return s.repo.GetByID(ctx, userID)
+func (s *UserService) GetMe(ctx context.Context, publicID string) (*domain.User, error) {
+	return s.repo.GetByPublicID(ctx, publicID)
 }

@@ -17,8 +17,10 @@ func NewIamHandler(s *service.IamService) *IamHandler {
 
 func (h *IamHandler) Register(c router.Context) {
 	var body struct {
+		Name     string `json:"name"`
 		Email    string `json:"email"`
 		Password string `json:"password"`
+		Image    string `json:"image"`
 	}
 
 	if err := c.BindJSON(&body); err != nil {
@@ -26,7 +28,12 @@ func (h *IamHandler) Register(c router.Context) {
 		return
 	}
 
-	user, err := h.svc.Register(c.Context(), body.Email, body.Password)
+	user, err := h.svc.Register(c.Context(), service.RegisterInput{
+		Name:     body.Name,
+		Email:    body.Email,
+		Password: body.Password,
+		Image:    body.Image,
+	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -46,7 +53,10 @@ func (h *IamHandler) Login(c router.Context) {
 		return
 	}
 
-	token, err := h.svc.Login(c.Context(), body.Email, body.Password)
+	token, err := h.svc.Login(c.Context(), service.LoginInput{
+		Email:    body.Email,
+		Password: body.Password,
+	})
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
 		return

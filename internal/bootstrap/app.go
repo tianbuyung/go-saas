@@ -12,6 +12,7 @@ import (
 
 type App struct {
 	router router.Router
+	port   string
 }
 
 func NewApp() *App {
@@ -21,12 +22,13 @@ func NewApp() *App {
 	// DB
 	dbPool := db.NewPool(cfg.DBPoolUrl)
 	queries := db.New(dbPool)
+	txManager := db.NewTxManager(dbPool)
 
 	// IAM
 	jwt := iam.NewJWT(cfg.JWTSecret, cfg.JWTExpireHours)
 
 	// Modules
-	authModule := auth.New(queries, jwt)
+	authModule := auth.New(queries, txManager, jwt)
 	userModule := user.New(queries)
 
 	// Router
@@ -38,9 +40,9 @@ func NewApp() *App {
 		User: userModule,
 	}, jwt)
 
-	return &App{router: r}
+	return &App{router: r, port: cfg.Port}
 }
 
 func (a *App) Run() {
-	a.router.Run(":8080")
+	a.router.Run(":" + a.port)
 }

@@ -23,20 +23,17 @@ func (h *UserHandler) Me(c router.Context) {
 		return
 	}
 
-	userID, ok := val.(int64)
+	publicID, ok := val.(string)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return
 	}
 
-	user, err := h.svc.GetMe(c.Context(), userID)
+	user, err := h.svc.GetMe(c.Context(), publicID)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed"})
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]any{
-		"id":    user.ID,
-		"email": user.Email,
-	})
+	c.JSON(http.StatusOK, user)
 }

@@ -8,24 +8,64 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type Account struct {
+	ID                    int64
+	UserID                int64
+	AccountID             string
+	ProviderID            string
+	AccessToken           pgtype.Text
+	RefreshToken          pgtype.Text
+	AccessTokenExpiresAt  pgtype.Timestamptz
+	RefreshTokenExpiresAt pgtype.Timestamptz
+	Scope                 pgtype.Text
+	IDToken               pgtype.Text
+	Password              pgtype.Text
+	Salt                  pgtype.Text
+	CreatedAt             pgtype.Timestamptz
+	UpdatedAt             pgtype.Timestamptz
+}
+
 type ActiveUser struct {
-	ID         int64
-	Email      string
-	Password   pgtype.Text
-	Salt       pgtype.Text
-	Provider   pgtype.Text
-	ProviderID pgtype.Text
-	CreatedAt  pgtype.Timestamp
-	DeletedAt  pgtype.Timestamp
+	ID            int64
+	PublicID      string
+	Name          string
+	Email         string
+	EmailVerified bool
+	Image         pgtype.Text
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
+}
+
+type Session struct {
+	ID        int64
+	UserID    int64
+	Token     string
+	ExpiresAt pgtype.Timestamptz
+	IpAddress pgtype.Text
+	UserAgent pgtype.Text
+	CreatedAt pgtype.Timestamptz
+	UpdatedAt pgtype.Timestamptz
 }
 
 type User struct {
+	ID            int64
+	PublicID      string
+	Name          string
+	Email         string
+	EmailVerified bool
+	Image         pgtype.Text
+	CreatedAt     pgtype.Timestamptz
+	UpdatedAt     pgtype.Timestamptz
+	DeletedAt     pgtype.Timestamptz
+}
+
+type Verification struct {
 	ID         int64
-	Email      string
-	Password   pgtype.Text
-	Salt       pgtype.Text
-	Provider   pgtype.Text
-	ProviderID pgtype.Text
-	CreatedAt  pgtype.Timestamp
-	DeletedAt  pgtype.Timestamp
+	Identifier string
+	Value      string
+	Type       string
+	ExpiresAt  pgtype.Timestamptz
+	CreatedAt  pgtype.Timestamptz
+	UpdatedAt  pgtype.Timestamptz
 }
