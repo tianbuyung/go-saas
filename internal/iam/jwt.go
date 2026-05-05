@@ -19,9 +19,9 @@ func NewJWT(secret string, expireHours int) *JWT {
 	}
 }
 
-func (j *JWT) GenerateToken(userID int64) (string, error) {
+func (j *JWT) GenerateToken(publicID string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub": userID,
+		"sub": publicID,
 		"exp": time.Now().Add(j.expire).Unix(),
 	}
 
@@ -29,7 +29,7 @@ func (j *JWT) GenerateToken(userID int64) (string, error) {
 	return token.SignedString(j.secret)
 }
 
-func (j *JWT) ParseToken(tokenStr string) (int64, error) {
+func (j *JWT) ParseToken(tokenStr string) (string, error) {
 	token, err := jwt.Parse(tokenStr, func(t *jwt.Token) (interface{}, error) {
 		if _, ok := t.Method.(*jwt.SigningMethodHMAC); !ok {
 			return nil, errors.New("invalid signing method")
@@ -38,18 +38,18 @@ func (j *JWT) ParseToken(tokenStr string) (int64, error) {
 	})
 
 	if err != nil || !token.Valid {
-		return 0, errors.New("invalid token")
+		return "", errors.New("invalid token")
 	}
 
 	claims, ok := token.Claims.(jwt.MapClaims)
 	if !ok {
-		return 0, errors.New("invalid claims")
+		return "", errors.New("invalid claims")
 	}
 
-	userIDFloat, ok := claims["sub"].(float64)
-	if !ok {
-		return 0, errors.New("invalid user_id")
+	publicID, ok := claims["sub"].(string)
+	if !ok || publicID == "" {
+		return "", errors.New("invalid sub claim")
 	}
 
-	return int64(userIDFloat), nil
+	return publicID, nil
 }

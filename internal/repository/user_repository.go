@@ -2,16 +2,24 @@ package repository
 
 import (
 	"context"
+
 	"saas/internal/db"
 	"saas/internal/domain"
 
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type CreateUserInput struct {
+	Name  string
+	Email string
+	Image string
+}
+
 type UserRepository interface {
 	GetByID(ctx context.Context, id int64) (*domain.User, error)
-	GetUserAuthByEmail(ctx context.Context, email string) (*domain.UserAuth, error)
-	Create(ctx context.Context, email, passwordHash, salt string) (*domain.User, error)
+	GetByPublicID(ctx context.Context, publicID string) (*domain.User, error)
+	GetByEmail(ctx context.Context, email string) (*domain.User, error)
+	Create(ctx context.Context, input CreateUserInput) (*domain.User, error)
 }
 
 type userRepository struct {
@@ -28,46 +36,54 @@ func (r *userRepository) GetByID(ctx context.Context, id int64) (*domain.User, e
 		return nil, err
 	}
 
-	return &domain.User{
-		ID:    u.ID,
-		Email: u.Email,
-	}, nil
+	return toDomainUser(u), nil
 }
 
-func (r *userRepository) GetUserAuthByEmail(ctx context.Context, email string) (*domain.UserAuth, error) {
+func (r *userRepository) GetByPublicID(ctx context.Context, publicID string) (*domain.User, error) {
+	u, err := r.q.GetUserByPublicID(ctx, publicID)
+	if err != nil {
+		return nil, err
+	}
+
+	return toDomainUser(u), nil
+}
+
+func (r *userRepository) GetByEmail(ctx context.Context, email string) (*domain.User, error) {
 	u, err := r.q.GetUserByEmail(ctx, email)
 	if err != nil {
 		return nil, err
 	}
 
-	return &domain.UserAuth{
-		ID:       u.ID,
-		Email:    u.Email,
-		Password: u.Password.String,
-		Salt:     u.Salt.String,
-	}, nil
+	return toDomainUser(u), nil
 }
 
-func (r *userRepository) Create(ctx context.Context, email, passwordHash, salt string) (*domain.User, error) {
+func (r *userRepository) Create(ctx context.Context, input CreateUserInput) (*domain.User, error) {
 	u, err := r.q.CreateUser(ctx, db.CreateUserParams{
-		Email: email,
-		Password: pgtype.Text{
-			String: passwordHash,
-			Valid:  true,
-		},
-		Salt: pgtype.Text{
-			String: salt,
-			Valid:  true,
-		},
-		Provider:   pgtype.Text{Valid: false},
-		ProviderID: pgtype.Text{Valid: false},
+		Name:  input.Name,
+		Email: input.Email,
+		Image: pgtype.Text{String: input.Image, Valid: input.Image != ""},
 	})
 	if err != nil {
 		return nil, err
 	}
 
 	return &domain.User{
-		ID:    u.ID,
-		Email: u.Email,
+		ID:            u.ID,
+		PublicID:      u.PublicID,
+		Name:          u.Name,
+		Email:         u.Email,
+		EmailVerified: u.EmailVerified,
+		Image:         u.Image.String,
 	}, nil
+}
+
+func toDomainUser(u db.ActiveUser) *domain.User {
+	return &domain.User{
+		ID:            u.ID,
+		PublicID:      u.PublicID,
+		Name:          u.Name,
+		Email:         u.Email,
+		EmailVerified: u.EmailVerified,
+		Image:         u.Image.String,
+	}
 }

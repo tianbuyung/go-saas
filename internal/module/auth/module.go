@@ -12,8 +12,8 @@ type Module struct {
 	IamHandler *handler.IamHandler
 }
 
-func New(q *db.Queries, jwt *iam.JWT) *Module {
-	iamService := service.NewIamService(q, jwt)
+func New(q *db.Queries, tx db.TxManager, jwt *iam.JWT) *Module {
+	iamService := service.NewIamService(q, tx, jwt)
 	iamHandler := handler.NewIamHandler(iamService)
 
 	return &Module{

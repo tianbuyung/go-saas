@@ -11,53 +11,255 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
-const createUser = `-- name: CreateUser :one
-INSERT INTO users (email, password, salt, provider, provider_id)
+const createAccount = `-- name: CreateAccount :one
+
+INSERT INTO accounts (user_id, account_id, provider_id, password, salt)
 VALUES (
-  LOWER($1),
+  $1,
   $2,
   $3,
   $4,
   $5
 )
-RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
+RETURNING id, user_id, account_id, provider_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, scope, id_token, password, salt, created_at, updated_at
+`
+
+type CreateAccountParams struct {
+	UserID     int64
+	AccountID  string
+	ProviderID string
+	Password   pgtype.Text
+	Salt       pgtype.Text
+}
+
+// ============================================================
+// accounts
+// ============================================================
+func (q *Queries) CreateAccount(ctx context.Context, arg CreateAccountParams) (Account, error) {
+	row := q.db.QueryRow(ctx, createAccount,
+		arg.UserID,
+		arg.AccountID,
+		arg.ProviderID,
+		arg.Password,
+		arg.Salt,
+	)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountID,
+		&i.ProviderID,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.AccessTokenExpiresAt,
+		&i.RefreshTokenExpiresAt,
+		&i.Scope,
+		&i.IDToken,
+		&i.Password,
+		&i.Salt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createSession = `-- name: CreateSession :one
+
+INSERT INTO sessions (user_id, token, expires_at, ip_address, user_agent)
+VALUES (
+  $1,
+  $2,
+  $3,
+  $4,
+  $5
+)
+RETURNING id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at
+`
+
+type CreateSessionParams struct {
+	UserID    int64
+	Token     string
+	ExpiresAt pgtype.Timestamptz
+	IpAddress pgtype.Text
+	UserAgent pgtype.Text
+}
+
+// ============================================================
+// sessions
+// ============================================================
+func (q *Queries) CreateSession(ctx context.Context, arg CreateSessionParams) (Session, error) {
+	row := q.db.QueryRow(ctx, createSession,
+		arg.UserID,
+		arg.Token,
+		arg.ExpiresAt,
+		arg.IpAddress,
+		arg.UserAgent,
+	)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Token,
+		&i.ExpiresAt,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const createUser = `-- name: CreateUser :one
+
+INSERT INTO users (name, email, image)
+VALUES ($1, LOWER($2), $3)
+RETURNING id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at
 `
 
 type CreateUserParams struct {
-	Email      string
-	Password   pgtype.Text
-	Salt       pgtype.Text
-	Provider   pgtype.Text
-	ProviderID pgtype.Text
+	Name  string
+	Email string
+	Image pgtype.Text
 }
 
+// ============================================================
+// users
+// ============================================================
 func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, createUser,
-		arg.Email,
-		arg.Password,
-		arg.Salt,
-		arg.Provider,
-		arg.ProviderID,
-	)
+	row := q.db.QueryRow(ctx, createUser, arg.Name, arg.Email, arg.Image)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
-FROM active_users
-WHERE LOWER(email) = LOWER($1)
+const deleteSession = `-- name: DeleteSession :exec
+DELETE FROM sessions WHERE token = $1
+`
+
+func (q *Queries) DeleteSession(ctx context.Context, token string) error {
+	_, err := q.db.Exec(ctx, deleteSession, token)
+	return err
+}
+
+const deleteUserSessions = `-- name: DeleteUserSessions :exec
+DELETE FROM sessions WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserSessions(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, deleteUserSessions, userID)
+	return err
+}
+
+const deleteVerification = `-- name: DeleteVerification :exec
+DELETE FROM verifications
+WHERE identifier = $1 AND type = $2
+`
+
+type DeleteVerificationParams struct {
+	Identifier string
+	Type       string
+}
+
+func (q *Queries) DeleteVerification(ctx context.Context, arg DeleteVerificationParams) error {
+	_, err := q.db.Exec(ctx, deleteVerification, arg.Identifier, arg.Type)
+	return err
+}
+
+const getAccountByProvider = `-- name: GetAccountByProvider :one
+SELECT id, user_id, account_id, provider_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, scope, id_token, password, salt, created_at, updated_at FROM accounts
+WHERE provider_id = $1 AND account_id = $2
 LIMIT 1
+`
+
+type GetAccountByProviderParams struct {
+	ProviderID string
+	AccountID  string
+}
+
+func (q *Queries) GetAccountByProvider(ctx context.Context, arg GetAccountByProviderParams) (Account, error) {
+	row := q.db.QueryRow(ctx, getAccountByProvider, arg.ProviderID, arg.AccountID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountID,
+		&i.ProviderID,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.AccessTokenExpiresAt,
+		&i.RefreshTokenExpiresAt,
+		&i.Scope,
+		&i.IDToken,
+		&i.Password,
+		&i.Salt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getCredentialAccountByUserID = `-- name: GetCredentialAccountByUserID :one
+SELECT id, user_id, account_id, provider_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, scope, id_token, password, salt, created_at, updated_at FROM accounts
+WHERE user_id = $1 AND provider_id = 'credential'
+LIMIT 1
+`
+
+func (q *Queries) GetCredentialAccountByUserID(ctx context.Context, userID int64) (Account, error) {
+	row := q.db.QueryRow(ctx, getCredentialAccountByUserID, userID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountID,
+		&i.ProviderID,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.AccessTokenExpiresAt,
+		&i.RefreshTokenExpiresAt,
+		&i.Scope,
+		&i.IDToken,
+		&i.Password,
+		&i.Salt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSessionByToken = `-- name: GetSessionByToken :one
+SELECT id, user_id, token, expires_at, ip_address, user_agent, created_at, updated_at FROM sessions
+WHERE token = $1 AND expires_at > NOW()
+LIMIT 1
+`
+
+func (q *Queries) GetSessionByToken(ctx context.Context, token string) (Session, error) {
+	row := q.db.QueryRow(ctx, getSessionByToken, token)
+	var i Session
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.Token,
+		&i.ExpiresAt,
+		&i.IpAddress,
+		&i.UserAgent,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getUserByEmail = `-- name: GetUserByEmail :one
+SELECT id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at FROM active_users WHERE LOWER(email) = LOWER($1) LIMIT 1
 `
 
 func (q *Queries) GetUserByEmail(ctx context.Context, email string) (ActiveUser, error) {
@@ -65,22 +267,20 @@ func (q *Queries) GetUserByEmail(ctx context.Context, email string) (ActiveUser,
 	var i ActiveUser
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByID = `-- name: GetUserByID :one
-SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
-FROM active_users
-WHERE id = $1
-LIMIT 1
+SELECT id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at FROM active_users WHERE id = $1 LIMIT 1
 `
 
 func (q *Queries) GetUserByID(ctx context.Context, id int64) (ActiveUser, error) {
@@ -88,79 +288,89 @@ func (q *Queries) GetUserByID(ctx context.Context, id int64) (ActiveUser, error)
 	var i ActiveUser
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const getUserByProvider = `-- name: GetUserByProvider :one
-SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
-FROM active_users
-WHERE provider = $1
-AND provider_id = $2
-LIMIT 1
+const getUserByPublicID = `-- name: GetUserByPublicID :one
+SELECT id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at FROM active_users WHERE public_id = $1 LIMIT 1
 `
 
-type GetUserByProviderParams struct {
-	Provider   pgtype.Text
-	ProviderID pgtype.Text
-}
-
-func (q *Queries) GetUserByProvider(ctx context.Context, arg GetUserByProviderParams) (ActiveUser, error) {
-	row := q.db.QueryRow(ctx, getUserByProvider, arg.Provider, arg.ProviderID)
+func (q *Queries) GetUserByPublicID(ctx context.Context, publicID string) (ActiveUser, error) {
+	row := q.db.QueryRow(ctx, getUserByPublicID, publicID)
 	var i ActiveUser
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const listUsers = `-- name: ListUsers :many
-SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
-FROM active_users
-ORDER BY LOWER(email)
+const getVerification = `-- name: GetVerification :one
+SELECT id, identifier, value, type, expires_at, created_at, updated_at FROM verifications
+WHERE identifier = $1
+  AND type = $2
+  AND expires_at > NOW()
+LIMIT 1
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]ActiveUser, error) {
-	rows, err := q.db.Query(ctx, listUsers)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []ActiveUser
-	for rows.Next() {
-		var i ActiveUser
-		if err := rows.Scan(
-			&i.ID,
-			&i.Email,
-			&i.Password,
-			&i.Salt,
-			&i.Provider,
-			&i.ProviderID,
-			&i.CreatedAt,
-			&i.DeletedAt,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+type GetVerificationParams struct {
+	Identifier string
+	Type       string
+}
+
+func (q *Queries) GetVerification(ctx context.Context, arg GetVerificationParams) (Verification, error) {
+	row := q.db.QueryRow(ctx, getVerification, arg.Identifier, arg.Type)
+	var i Verification
+	err := row.Scan(
+		&i.ID,
+		&i.Identifier,
+		&i.Value,
+		&i.Type,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const markEmailVerified = `-- name: MarkEmailVerified :one
+UPDATE users
+SET email_verified = TRUE, updated_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at
+`
+
+func (q *Queries) MarkEmailVerified(ctx context.Context, id int64) (User, error) {
+	row := q.db.QueryRow(ctx, markEmailVerified, id)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.PublicID,
+		&i.Name,
+		&i.Email,
+		&i.EmailVerified,
+		&i.Image,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
 }
 
 const softDeleteUser = `-- name: SoftDeleteUser :one
@@ -177,11 +387,46 @@ func (q *Queries) SoftDeleteUser(ctx context.Context, id int64) (int64, error) {
 	return id_2, err
 }
 
+const updateAccountPassword = `-- name: UpdateAccountPassword :one
+UPDATE accounts
+SET password = $1, salt = $2, updated_at = NOW()
+WHERE user_id = $3 AND provider_id = 'credential'
+RETURNING id, user_id, account_id, provider_id, access_token, refresh_token, access_token_expires_at, refresh_token_expires_at, scope, id_token, password, salt, created_at, updated_at
+`
+
+type UpdateAccountPasswordParams struct {
+	Password pgtype.Text
+	Salt     pgtype.Text
+	UserID   int64
+}
+
+func (q *Queries) UpdateAccountPassword(ctx context.Context, arg UpdateAccountPasswordParams) (Account, error) {
+	row := q.db.QueryRow(ctx, updateAccountPassword, arg.Password, arg.Salt, arg.UserID)
+	var i Account
+	err := row.Scan(
+		&i.ID,
+		&i.UserID,
+		&i.AccountID,
+		&i.ProviderID,
+		&i.AccessToken,
+		&i.RefreshToken,
+		&i.AccessTokenExpiresAt,
+		&i.RefreshTokenExpiresAt,
+		&i.Scope,
+		&i.IDToken,
+		&i.Password,
+		&i.Salt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const updateUserEmail = `-- name: UpdateUserEmail :one
 UPDATE users
-SET email = LOWER($1)
+SET email = LOWER($1), updated_at = NOW()
 WHERE id = $2 AND deleted_at IS NULL
-RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
+RETURNING id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at
 `
 
 type UpdateUserEmailParams struct {
@@ -194,43 +439,83 @@ func (q *Queries) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const updateUserPassword = `-- name: UpdateUserPassword :one
+const updateUserProfile = `-- name: UpdateUserProfile :one
 UPDATE users
-SET password = $1,
-    salt = $2
+SET name = $1, image = $2, updated_at = NOW()
 WHERE id = $3 AND deleted_at IS NULL
-RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
+RETURNING id, public_id, name, email, email_verified, image, created_at, updated_at, deleted_at
 `
 
-type UpdateUserPasswordParams struct {
-	Password pgtype.Text
-	Salt     pgtype.Text
-	ID       int64
+type UpdateUserProfileParams struct {
+	Name  string
+	Image pgtype.Text
+	ID    int64
 }
 
-func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUserPassword, arg.Password, arg.Salt, arg.ID)
+func (q *Queries) UpdateUserProfile(ctx context.Context, arg UpdateUserProfileParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserProfile, arg.Name, arg.Image, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
+		&i.PublicID,
+		&i.Name,
 		&i.Email,
-		&i.Password,
-		&i.Salt,
-		&i.Provider,
-		&i.ProviderID,
+		&i.EmailVerified,
+		&i.Image,
 		&i.CreatedAt,
+		&i.UpdatedAt,
 		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const upsertVerification = `-- name: UpsertVerification :one
+
+INSERT INTO verifications (identifier, value, type, expires_at)
+VALUES ($1, $2, $3, $4)
+ON CONFLICT (identifier, type) DO UPDATE
+  SET value = EXCLUDED.value, expires_at = EXCLUDED.expires_at, updated_at = NOW()
+RETURNING id, identifier, value, type, expires_at, created_at, updated_at
+`
+
+type UpsertVerificationParams struct {
+	Identifier string
+	Value      string
+	Type       string
+	ExpiresAt  pgtype.Timestamptz
+}
+
+// ============================================================
+// verifications
+// ============================================================
+func (q *Queries) UpsertVerification(ctx context.Context, arg UpsertVerificationParams) (Verification, error) {
+	row := q.db.QueryRow(ctx, upsertVerification,
+		arg.Identifier,
+		arg.Value,
+		arg.Type,
+		arg.ExpiresAt,
+	)
+	var i Verification
+	err := row.Scan(
+		&i.ID,
+		&i.Identifier,
+		&i.Value,
+		&i.Type,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }

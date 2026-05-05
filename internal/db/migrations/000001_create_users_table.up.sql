@@ -1,4 +1,3 @@
--- migrations/000001_create_users_table.up.sql
 BEGIN;
 
 CREATE TABLE users (
