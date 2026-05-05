@@ -15,4 +15,5 @@ type User struct {
 	Provider   pgtype.Text
 	ProviderID pgtype.Text
 	CreatedAt  pgtype.Timestamp
+	Salt       pgtype.Text
 }
