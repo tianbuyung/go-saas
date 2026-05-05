@@ -8,12 +8,24 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+type ActiveUser struct {
+	ID         int64
+	Email      string
+	Password   pgtype.Text
+	Salt       pgtype.Text
+	Provider   pgtype.Text
+	ProviderID pgtype.Text
+	CreatedAt  pgtype.Timestamp
+	DeletedAt  pgtype.Timestamp
+}
+
 type User struct {
 	ID         int64
 	Email      string
 	Password   pgtype.Text
+	Salt       pgtype.Text
 	Provider   pgtype.Text
 	ProviderID pgtype.Text
 	CreatedAt  pgtype.Timestamp
-	Salt       pgtype.Text
+	DeletedAt  pgtype.Timestamp
 }

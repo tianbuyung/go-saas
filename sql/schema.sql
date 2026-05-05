@@ -26,6 +26,12 @@ CREATE TABLE users (
   )
 );
 
+-- Active users view (exclude soft-deleted users)
+CREATE VIEW active_users AS
+SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
+FROM users
+WHERE deleted_at IS NULL;
+
 -- case-insensitive email uniqueness (only active users)
 CREATE UNIQUE INDEX unique_users_email_ci
 ON users (LOWER(email))
