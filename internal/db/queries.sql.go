@@ -13,8 +13,14 @@ import (
 
 const createUser = `-- name: CreateUser :one
 INSERT INTO users (email, password, salt, provider, provider_id)
-VALUES ($1, $2, $3, $4, $5)
-RETURNING id, email, password, provider, provider_id, created_at, salt
+VALUES (
+  LOWER($1),
+  $2,
+  $3,
+  $4,
+  $5
+)
+RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
 `
 
 type CreateUserParams struct {
@@ -38,46 +44,67 @@ func (q *Queries) CreateUser(ctx context.Context, arg CreateUserParams) (User, e
 		&i.ID,
 		&i.Email,
 		&i.Password,
+		&i.Salt,
 		&i.Provider,
 		&i.ProviderID,
 		&i.CreatedAt,
-		&i.Salt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
-const deleteUser = `-- name: DeleteUser :exec
-DELETE FROM users
-WHERE id = $1
-`
-
-func (q *Queries) DeleteUser(ctx context.Context, id int64) error {
-	_, err := q.db.Exec(ctx, deleteUser, id)
-	return err
-}
-
 const getUserByEmail = `-- name: GetUserByEmail :one
-SELECT id, email, password, provider, provider_id, created_at, salt FROM users WHERE email = $1
+SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
+FROM active_users
+WHERE LOWER(email) = LOWER($1)
+LIMIT 1
 `
 
-func (q *Queries) GetUserByEmail(ctx context.Context, email string) (User, error) {
+func (q *Queries) GetUserByEmail(ctx context.Context, email string) (ActiveUser, error) {
 	row := q.db.QueryRow(ctx, getUserByEmail, email)
-	var i User
+	var i ActiveUser
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Password,
+		&i.Salt,
 		&i.Provider,
 		&i.ProviderID,
 		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const getUserByID = `-- name: GetUserByID :one
+SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
+FROM active_users
+WHERE id = $1
+LIMIT 1
+`
+
+func (q *Queries) GetUserByID(ctx context.Context, id int64) (ActiveUser, error) {
+	row := q.db.QueryRow(ctx, getUserByID, id)
+	var i ActiveUser
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Password,
 		&i.Salt,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const getUserByProvider = `-- name: GetUserByProvider :one
-SELECT id, email, password, provider, provider_id, created_at, salt FROM users
-WHERE provider = $1 AND provider_id = $2
+SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
+FROM active_users
+WHERE provider = $1
+AND provider_id = $2
+LIMIT 1
 `
 
 type GetUserByProviderParams struct {
@@ -85,43 +112,46 @@ type GetUserByProviderParams struct {
 	ProviderID pgtype.Text
 }
 
-func (q *Queries) GetUserByProvider(ctx context.Context, arg GetUserByProviderParams) (User, error) {
+func (q *Queries) GetUserByProvider(ctx context.Context, arg GetUserByProviderParams) (ActiveUser, error) {
 	row := q.db.QueryRow(ctx, getUserByProvider, arg.Provider, arg.ProviderID)
-	var i User
+	var i ActiveUser
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Password,
+		&i.Salt,
 		&i.Provider,
 		&i.ProviderID,
 		&i.CreatedAt,
-		&i.Salt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, email, password, provider, provider_id, created_at, salt FROM users
-ORDER BY email
+SELECT id, email, password, salt, provider, provider_id, created_at, deleted_at
+FROM active_users
+ORDER BY LOWER(email)
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
+func (q *Queries) ListUsers(ctx context.Context) ([]ActiveUser, error) {
 	rows, err := q.db.Query(ctx, listUsers)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []User
+	var items []ActiveUser
 	for rows.Next() {
-		var i User
+		var i ActiveUser
 		if err := rows.Scan(
 			&i.ID,
 			&i.Email,
 			&i.Password,
+			&i.Salt,
 			&i.Provider,
 			&i.ProviderID,
 			&i.CreatedAt,
-			&i.Salt,
+			&i.DeletedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -133,32 +163,74 @@ func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
 	return items, nil
 }
 
-const updateUser = `-- name: UpdateUser :one
+const softDeleteUser = `-- name: SoftDeleteUser :one
 UPDATE users
-SET 
-  email = COALESCE($2, email),
-  password = COALESCE($3, password)
-WHERE id = $1
-RETURNING id, email, password, provider, provider_id, created_at, salt
+SET deleted_at = NOW()
+WHERE id = $1 AND deleted_at IS NULL
+RETURNING id
 `
 
-type UpdateUserParams struct {
-	ID       int64
-	Email    string
-	Password pgtype.Text
+func (q *Queries) SoftDeleteUser(ctx context.Context, id int64) (int64, error) {
+	row := q.db.QueryRow(ctx, softDeleteUser, id)
+	var id_2 int64
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
-func (q *Queries) UpdateUser(ctx context.Context, arg UpdateUserParams) (User, error) {
-	row := q.db.QueryRow(ctx, updateUser, arg.ID, arg.Email, arg.Password)
+const updateUserEmail = `-- name: UpdateUserEmail :one
+UPDATE users
+SET email = LOWER($1)
+WHERE id = $2 AND deleted_at IS NULL
+RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
+`
+
+type UpdateUserEmailParams struct {
+	Email string
+	ID    int64
+}
+
+func (q *Queries) UpdateUserEmail(ctx context.Context, arg UpdateUserEmailParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserEmail, arg.Email, arg.ID)
 	var i User
 	err := row.Scan(
 		&i.ID,
 		&i.Email,
 		&i.Password,
+		&i.Salt,
 		&i.Provider,
 		&i.ProviderID,
 		&i.CreatedAt,
+		&i.DeletedAt,
+	)
+	return i, err
+}
+
+const updateUserPassword = `-- name: UpdateUserPassword :one
+UPDATE users
+SET password = $1,
+    salt = $2
+WHERE id = $3 AND deleted_at IS NULL
+RETURNING id, email, password, salt, provider, provider_id, created_at, deleted_at
+`
+
+type UpdateUserPasswordParams struct {
+	Password pgtype.Text
+	Salt     pgtype.Text
+	ID       int64
+}
+
+func (q *Queries) UpdateUserPassword(ctx context.Context, arg UpdateUserPasswordParams) (User, error) {
+	row := q.db.QueryRow(ctx, updateUserPassword, arg.Password, arg.Salt, arg.ID)
+	var i User
+	err := row.Scan(
+		&i.ID,
+		&i.Email,
+		&i.Password,
 		&i.Salt,
+		&i.Provider,
+		&i.ProviderID,
+		&i.CreatedAt,
+		&i.DeletedAt,
 	)
 	return i, err
 }
