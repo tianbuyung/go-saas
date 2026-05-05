@@ -55,6 +55,21 @@ func main() {
 	r.POST("/register", iamHandler.Register)
 	r.POST("/login", iamHandler.Login)
 
+	protected := r.Group("/api")
+	protected.Use(middleware.JWTAuth(jwt))
+
+	protected.GET("/me", func(c *gin.Context) {
+		userID, exists := c.Get(middleware.ContextUserIDKey)
+		if !exists {
+			c.JSON(401, gin.H{"error": "unauthorized"})
+			return
+		}
+
+		c.JSON(200, gin.H{
+			"user_id": userID,
+		})
+	})
+
 	log.Info("server running",
 		zap.String("port", cfg.Port),
 		zap.String("env", cfg.Env),
