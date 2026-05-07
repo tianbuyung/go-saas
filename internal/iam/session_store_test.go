@@ -316,4 +316,3 @@ func TestHybridSessionStore_DeleteByUserID_RedisFails_DBIsReturnValue(t *testing
 		})
 	}
 }
-

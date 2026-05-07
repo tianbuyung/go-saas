@@ -169,13 +169,13 @@ func TestZapLogger_WrongTypePublicID_NoPanic(t *testing.T) {
 type stubContext struct{}
 
 func (s *stubContext) JSON(_ int, _ any)         {}
-func (s *stubContext) Param(_ string) string      { return "" }
-func (s *stubContext) Query(_ string) string      { return "" }
-func (s *stubContext) BindJSON(_ any) error       { return nil }
-func (s *stubContext) Set(_ string, _ any)        {}
-func (s *stubContext) Get(_ string) (any, bool)   { return nil, false }
-func (s *stubContext) GetHeader(_ string) string  { return "" }
-func (s *stubContext) Context() context.Context   { return context.Background() }
+func (s *stubContext) Param(_ string) string     { return "" }
+func (s *stubContext) Query(_ string) string     { return "" }
+func (s *stubContext) BindJSON(_ any) error      { return nil }
+func (s *stubContext) Set(_ string, _ any)       {}
+func (s *stubContext) Get(_ string) (any, bool)  { return nil, false }
+func (s *stubContext) GetHeader(_ string) string { return "" }
+func (s *stubContext) Context() context.Context  { return context.Background() }
 
 // TestZapLogger_NonGinContext_EmitsWarn verifies that passing a context that is
 // not a *ginContext causes the middleware to emit a Warn-level log (not a panic

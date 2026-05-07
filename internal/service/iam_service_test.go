@@ -206,7 +206,6 @@ func newService(
 // Register
 // ---------------------------------------------------------------------------
 
-
 func TestIamService_Register_TxControlled(t *testing.T) {
 	tests := []struct {
 		name      string
@@ -414,16 +413,16 @@ func TestIamService_Refresh(t *testing.T) {
 	}
 
 	tests := []struct {
-		name           string
-		refreshToken   string
-		sessionResult  *domain.Session
-		sessionErr     error
-		userResult     *domain.User
-		userErr        error
-		deleteErr      error
-		newSessionErr  error
-		wantErr        bool
-		wantErrMsg     string
+		name          string
+		refreshToken  string
+		sessionResult *domain.Session
+		sessionErr    error
+		userResult    *domain.User
+		userErr       error
+		deleteErr     error
+		newSessionErr error
+		wantErr       bool
+		wantErrMsg    string
 	}{
 		{
 			name:          "success — old session deleted, new tokens returned",
@@ -514,15 +513,15 @@ func TestIamService_Logout(t *testing.T) {
 	futureExpiry := time.Now().Add(5 * time.Minute)
 
 	tests := []struct {
-		name           string
-		input          LogoutInput
-		userResult     *domain.User
-		userErr        error
-		sessionResult  *domain.Session
-		sessionErr     error
-		deleteErr      error
-		blocklistErr   error
-		wantErr        bool
+		name          string
+		input         LogoutInput
+		userResult    *domain.User
+		userErr       error
+		sessionResult *domain.Session
+		sessionErr    error
+		deleteErr     error
+		blocklistErr  error
+		wantErr       bool
 	}{
 		{
 			name: "success — session deleted and JTI blocklisted",

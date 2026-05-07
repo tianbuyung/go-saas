@@ -48,12 +48,12 @@ func TestNoopBlocklist_IsRevoked_AlwaysReturnsFalseNil(t *testing.T) {
 // ---------------------------------------------------------------------------
 
 type mockCacher struct {
-	setFn     func(ctx context.Context, key, value string, ttl time.Duration) error
-	getFn     func(ctx context.Context, key string) (string, error)
-	delFn     func(ctx context.Context, keys ...string) error
-	sAddFn    func(ctx context.Context, key string, members ...string) error
+	setFn      func(ctx context.Context, key, value string, ttl time.Duration) error
+	getFn      func(ctx context.Context, key string) (string, error)
+	delFn      func(ctx context.Context, keys ...string) error
+	sAddFn     func(ctx context.Context, key string, members ...string) error
 	sMembersFn func(ctx context.Context, key string) ([]string, error)
-	sRemFn    func(ctx context.Context, key string, members ...string) error
+	sRemFn     func(ctx context.Context, key string, members ...string) error
 }
 
 func (m *mockCacher) Set(ctx context.Context, key, value string, ttl time.Duration) error {

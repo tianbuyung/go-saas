@@ -64,8 +64,8 @@ func (m *mockContext) Context() context.Context {
 	return context.Background()
 }
 
-func (m *mockContext) Param(_ string) string  { return "" }
-func (m *mockContext) Query(_ string) string  { return "" }
+func (m *mockContext) Param(_ string) string { return "" }
+func (m *mockContext) Query(_ string) string { return "" }
 
 // ---------------------------------------------------------------------------
 // mockIamService — implements service.IamServiceIface
@@ -140,8 +140,8 @@ func TestIamHandler_Register(t *testing.T) {
 		svcErr         error
 		svcUser        *domain.User
 		wantStatus     int
-		wantBodyKey    string        // key that must be present in response
-		wantBodyAbsent string        // key that must NOT appear (e.g. "id")
+		wantBodyKey    string // key that must be present in response
+		wantBodyAbsent string // key that must NOT appear (e.g. "id")
 		wantErrMsg     string
 	}{
 		{
@@ -347,8 +347,8 @@ func TestIamHandler_Logout(t *testing.T) {
 	// baseVals returns a valid context value map for a successful logout.
 	baseVals := func() map[string]any {
 		return map[string]any{
-			router.ContextUserIDKey:        "pub-abc",
-			router.ContextJTIKey:           "jti-xyz",
+			router.ContextUserIDKey:         "pub-abc",
+			router.ContextJTIKey:            "jti-xyz",
 			router.ContextTokenExpiresAtKey: validTime,
 		}
 	}
@@ -371,7 +371,7 @@ func TestIamHandler_Logout(t *testing.T) {
 			name: "ContextUserIDKey missing — 401",
 			body: validBody,
 			contextVals: map[string]any{
-				router.ContextJTIKey:           "jti-xyz",
+				router.ContextJTIKey:            "jti-xyz",
 				router.ContextTokenExpiresAtKey: validTime,
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -380,8 +380,8 @@ func TestIamHandler_Logout(t *testing.T) {
 			name: "ContextUserIDKey wrong type (int) — 401",
 			body: validBody,
 			contextVals: map[string]any{
-				router.ContextUserIDKey:        42, // int, not string
-				router.ContextJTIKey:           "jti-xyz",
+				router.ContextUserIDKey:         42, // int, not string
+				router.ContextJTIKey:            "jti-xyz",
 				router.ContextTokenExpiresAtKey: validTime,
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -390,7 +390,7 @@ func TestIamHandler_Logout(t *testing.T) {
 			name: "ContextJTIKey missing — 401",
 			body: validBody,
 			contextVals: map[string]any{
-				router.ContextUserIDKey:        "pub-abc",
+				router.ContextUserIDKey:         "pub-abc",
 				router.ContextTokenExpiresAtKey: validTime,
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -399,8 +399,8 @@ func TestIamHandler_Logout(t *testing.T) {
 			name: "ContextJTIKey wrong type — 401",
 			body: validBody,
 			contextVals: map[string]any{
-				router.ContextUserIDKey:        "pub-abc",
-				router.ContextJTIKey:           12345, // int, not string
+				router.ContextUserIDKey:         "pub-abc",
+				router.ContextJTIKey:            12345, // int, not string
 				router.ContextTokenExpiresAtKey: validTime,
 			},
 			wantStatus: http.StatusUnauthorized,
@@ -410,7 +410,7 @@ func TestIamHandler_Logout(t *testing.T) {
 			body: validBody,
 			contextVals: map[string]any{
 				router.ContextUserIDKey: "pub-abc",
-				router.ContextJTIKey:   "jti-xyz",
+				router.ContextJTIKey:    "jti-xyz",
 			},
 			wantStatus: http.StatusUnauthorized,
 		},
@@ -418,8 +418,8 @@ func TestIamHandler_Logout(t *testing.T) {
 			name: "ContextTokenExpiresAtKey wrong type (string) — 401",
 			body: validBody,
 			contextVals: map[string]any{
-				router.ContextUserIDKey:        "pub-abc",
-				router.ContextJTIKey:           "jti-xyz",
+				router.ContextUserIDKey:         "pub-abc",
+				router.ContextJTIKey:            "jti-xyz",
 				router.ContextTokenExpiresAtKey: "not-a-time", // string, not time.Time
 			},
 			wantStatus: http.StatusUnauthorized,

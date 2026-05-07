@@ -16,7 +16,7 @@ type Blocklist interface {
 // NoopBlocklist is a fail-open no-op used when Redis is not configured.
 type NoopBlocklist struct{}
 
-func NewNoopBlocklist() Blocklist          { return &NoopBlocklist{} }
+func NewNoopBlocklist() Blocklist                                             { return &NoopBlocklist{} }
 func (*NoopBlocklist) Add(_ context.Context, _ string, _ time.Duration) error { return nil }
 func (*NoopBlocklist) IsRevoked(_ context.Context, _ string) (bool, error)    { return false, nil }
 
