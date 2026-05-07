@@ -14,9 +14,10 @@ help: ## Show this help
 # ── Git hooks ─────────────────────────────────────────────────────────────────
 
 install-hooks: ## Install git hooks (run once after cloning)
-	cp scripts/hooks/pre-commit ../.git/hooks/pre-commit
-	cp scripts/hooks/pre-push   ../.git/hooks/pre-push
-	chmod +x ../.git/hooks/pre-commit ../.git/hooks/pre-push
+	cp scripts/hooks/pre-commit .git/hooks/pre-commit
+	cp scripts/hooks/pre-push   .git/hooks/pre-push
+	cp scripts/hooks/commit-msg .git/hooks/commit-msg
+	chmod +x .git/hooks/pre-commit .git/hooks/pre-push .git/hooks/commit-msg
 	@echo "Git hooks installed."
 
 # ── Infrastructure ────────────────────────────────────────────────────────────
