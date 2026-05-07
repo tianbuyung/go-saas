@@ -7,10 +7,8 @@ import (
 
 	"saas/internal/config"
 	"saas/internal/iam"
-	"saas/internal/middleware"
 
 	"github.com/gin-gonic/gin"
-	"go.uber.org/zap"
 )
 
 // ===== Context Adapter =====
@@ -65,7 +63,7 @@ type GinEngine struct {
 	root   *gin.Engine
 }
 
-func NewGinEngine(cfg *config.Config, log *zap.Logger) Router {
+func NewGinEngine(cfg *config.Config) Router {
 	if cfg.Env == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	} else {
@@ -81,7 +79,6 @@ func NewGinEngine(cfg *config.Config, log *zap.Logger) Router {
 	e.SetTrustedProxies(proxies)
 
 	e.Use(gin.Recovery())
-	e.Use(middleware.ZapLogger(log))
 
 	return &GinEngine{router: e, root: e}
 }
@@ -130,8 +127,9 @@ func (g *GinEngine) wrapMiddleware(mw MiddlewareFunc) gin.HandlerFunc {
 // ===== Middleware constructors =====
 
 // NewJWTMiddleware returns a framework-agnostic JWT auth middleware.
-// Validates Bearer token, injects user_id into context on success.
-func NewJWTMiddleware(j *iam.JWT) MiddlewareFunc {
+// Validates Bearer token, checks the revocation blocklist, and injects
+// user_id, jti, and token_expires_at into context on success.
+func NewJWTMiddleware(j *iam.JWT, bl iam.Blocklist) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(c Context) {
 			authHeader := c.GetHeader("Authorization")
@@ -146,13 +144,21 @@ func NewJWTMiddleware(j *iam.JWT) MiddlewareFunc {
 				return
 			}
 
-			userID, err := j.ParseToken(parts[1])
+			claims, err := j.ParseToken(parts[1])
 			if err != nil {
 				c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 				return
 			}
 
-			c.Set(middleware.ContextUserIDKey, userID)
+			revoked, err := bl.IsRevoked(c.Context(), claims.JTI)
+			if err != nil || revoked {
+				c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
+				return
+			}
+
+			c.Set(ContextUserIDKey, claims.PublicID)
+			c.Set(ContextJTIKey, claims.JTI)
+			c.Set(ContextTokenExpiresAtKey, claims.ExpiresAt)
 			next(c)
 		}
 	}

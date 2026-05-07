@@ -3,6 +3,9 @@ package logger
 import "go.uber.org/zap"
 
 func New() *zap.Logger {
-	log, _ := zap.NewProduction()
+	log, err := zap.NewProduction()
+	if err != nil {
+		panic("failed to initialize logger: " + err.Error())
+	}
 	return log
 }

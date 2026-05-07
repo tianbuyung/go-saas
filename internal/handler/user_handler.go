@@ -3,21 +3,20 @@ package handler
 import (
 	"net/http"
 
-	"saas/internal/middleware"
 	"saas/internal/router"
 	"saas/internal/service"
 )
 
 type UserHandler struct {
-	svc *service.UserService
+	svc service.UserServiceIface
 }
 
-func NewUserHandler(s *service.UserService) *UserHandler {
+func NewUserHandler(s service.UserServiceIface) *UserHandler {
 	return &UserHandler{svc: s}
 }
 
 func (h *UserHandler) Me(c router.Context) {
-	val, ok := c.Get(middleware.ContextUserIDKey)
+	val, ok := c.Get(router.ContextUserIDKey)
 	if !ok {
 		c.JSON(http.StatusUnauthorized, map[string]string{"error": "unauthorized"})
 		return

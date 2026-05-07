@@ -24,9 +24,9 @@ func New(q *db.Queries) *Module {
 	}
 }
 
-func (m *Module) RegisterRoutes(r router.Router, jwt *iam.JWT) {
+func (m *Module) RegisterRoutes(r router.Router, jwt *iam.JWT, bl iam.Blocklist) {
 	api := r.Group("/api")
-	api.Use(router.NewJWTMiddleware(jwt))
+	api.Use(router.NewJWTMiddleware(jwt, bl))
 
 	api.GET("/me", m.UserHandler.Me)
 }

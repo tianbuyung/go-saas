@@ -6,6 +6,10 @@ import (
 	"saas/internal/repository"
 )
 
+type UserServiceIface interface {
+	GetMe(ctx context.Context, publicID string) (*domain.User, error)
+}
+
 type UserService struct {
 	repo repository.UserRepository
 }
