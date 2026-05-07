@@ -1,0 +1,41 @@
+root = "."
+tmp_dir = ".air"
+
+[build]
+  cmd = "go build -o .air/api ./cmd/api"
+  bin = ".air/api"
+  include_ext = ["go", "env"]
+  exclude_dir = [
+    ".air",
+    ".git",
+    "vendor",
+    "internal/db/migrations",
+    "internal/e2e",
+    "internal/testutil",
+  ]
+  exclude_regex = ["_test\\.go$"]
+  exclude_unchanged = true
+  follow_symlink = false
+  # Clean test cache before each rebuild so tests always run fresh after a watch session
+  pre_cmd = ["go clean -testcache"]
+  delay = 500
+  stop_on_error = true
+  # Send SIGINT first so the server can drain in-flight requests before SIGKILL
+  send_interrupt = true
+  kill_delay = 500
+  rerun = false
+  rerun_delay = 500
+
+[log]
+  time = true
+  main_only = false
+
+[color]
+  main = "magenta"
+  watcher = "cyan"
+  build = "yellow"
+  runner = "green"
+
+[misc]
+  # Remove the compiled binary from .air/ when Air exits — no leftover artefacts
+  clean_on_exit = true
