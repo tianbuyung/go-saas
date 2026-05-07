@@ -2,12 +2,16 @@ package repository
 
 import (
 	"context"
+	"errors"
 
 	"saas/internal/db"
 	"saas/internal/domain"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
 )
+
+var ErrEmailAlreadyExists = errors.New("email already exists")
 
 type CreateUserInput struct {
 	Name  string
@@ -64,6 +68,10 @@ func (r *userRepository) Create(ctx context.Context, input CreateUserInput) (*do
 		Image: pgtype.Text{String: input.Image, Valid: input.Image != ""},
 	})
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return nil, ErrEmailAlreadyExists
+		}
 		return nil, err
 	}
 

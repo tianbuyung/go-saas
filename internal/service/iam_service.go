@@ -4,12 +4,17 @@ import (
 	"context"
 	"errors"
 	"strings"
+	"time"
 
 	"saas/internal/db"
 	"saas/internal/domain"
 	"saas/internal/iam"
 	"saas/internal/repository"
+
+	"go.uber.org/zap"
 )
+
+var ErrEmailAlreadyExists = repository.ErrEmailAlreadyExists
 
 type RegisterInput struct {
 	Name     string
@@ -19,23 +24,58 @@ type RegisterInput struct {
 }
 
 type LoginInput struct {
-	Email    string
-	Password string
+	Email     string
+	Password  string
+	IPAddress string
+	UserAgent string
+}
+
+type LoginOutput struct {
+	AccessToken  string
+	RefreshToken string
+}
+
+type IamServiceIface interface {
+	Register(ctx context.Context, input RegisterInput) (*domain.User, error)
+	Login(ctx context.Context, input LoginInput) (*LoginOutput, error)
+	Refresh(ctx context.Context, refreshToken string) (*LoginOutput, error)
+	Logout(ctx context.Context, input LogoutInput) error
 }
 
 type IamService struct {
-	userRepo    repository.UserRepository
-	accountRepo repository.AccountRepository
-	txManager   db.TxManager
-	jwt         *iam.JWT
+	userRepo           repository.UserRepository
+	accountRepo        repository.AccountRepository
+	txManager          db.TxManager
+	jwt                *iam.JWT
+	sessionStore       iam.SessionStore
+	blocklist          iam.Blocklist
+	log                *zap.Logger
+	refreshExpireHours int
+	makeUserRepo       func(*db.Queries) repository.UserRepository
+	makeAccountRepo    func(*db.Queries) repository.AccountRepository
 }
 
-func NewIamService(q *db.Queries, tx db.TxManager, jwt *iam.JWT) *IamService {
+func NewIamService(
+	userRepo repository.UserRepository,
+	accountRepo repository.AccountRepository,
+	tx db.TxManager,
+	jwt *iam.JWT,
+	ss iam.SessionStore,
+	bl iam.Blocklist,
+	log *zap.Logger,
+	refreshExpireHours int,
+) *IamService {
 	return &IamService{
-		userRepo:    repository.NewUserRepository(q),
-		accountRepo: repository.NewAccountRepository(q),
-		txManager:   tx,
-		jwt:         jwt,
+		userRepo:           userRepo,
+		accountRepo:        accountRepo,
+		txManager:          tx,
+		jwt:                jwt,
+		sessionStore:       ss,
+		blocklist:          bl,
+		log:                log,
+		refreshExpireHours: refreshExpireHours,
+		makeUserRepo:       repository.NewUserRepository,
+		makeAccountRepo:    repository.NewAccountRepository,
 	}
 }
 
@@ -49,8 +89,8 @@ func (s *IamService) Register(ctx context.Context, input RegisterInput) (*domain
 
 	var result *domain.User
 	err = s.txManager.WithTx(ctx, func(q *db.Queries) error {
-		userRepo := repository.NewUserRepository(q)
-		accountRepo := repository.NewAccountRepository(q)
+		userRepo := s.makeUserRepo(q)
+		accountRepo := s.makeAccountRepo(q)
 
 		user, err := userRepo.Create(ctx, repository.CreateUserInput{
 			Name:  input.Name,
@@ -82,27 +122,124 @@ func (s *IamService) Register(ctx context.Context, input RegisterInput) (*domain
 	return result, nil
 }
 
-func (s *IamService) Login(ctx context.Context, input LoginInput) (string, error) {
+func (s *IamService) Login(ctx context.Context, input LoginInput) (*LoginOutput, error) {
 	email := strings.ToLower(strings.TrimSpace(input.Email))
 
 	account, err := s.accountRepo.GetByProvider(ctx, "credential", email)
 	if err != nil {
-		return "", errors.New("invalid credentials")
+		return nil, errors.New("invalid credentials")
 	}
 
 	if !iam.ComparePassword(input.Password, account.Password, account.Salt) {
-		return "", errors.New("invalid credentials")
+		return nil, errors.New("invalid credentials")
 	}
 
 	user, err := s.userRepo.GetByID(ctx, account.UserID)
 	if err != nil {
-		return "", errors.New("invalid credentials")
+		return nil, errors.New("invalid credentials")
 	}
 
-	token, err := s.jwt.GenerateToken(user.PublicID)
+	refreshToken, err := iam.GenerateOpaqueToken()
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
-	return token, nil
+	session := &domain.Session{
+		UserID:    user.ID,
+		Token:     refreshToken,
+		ExpiresAt: time.Now().Add(time.Duration(s.refreshExpireHours) * time.Hour),
+		IPAddress: input.IPAddress,
+		UserAgent: input.UserAgent,
+	}
+	if err := s.sessionStore.Create(ctx, session); err != nil {
+		return nil, err
+	}
+
+	accessToken, err := s.jwt.GenerateToken(user.PublicID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: refreshToken,
+	}, nil
+}
+
+func (s *IamService) Refresh(ctx context.Context, refreshToken string) (*LoginOutput, error) {
+	session, err := s.sessionStore.GetByToken(ctx, refreshToken)
+	if err != nil {
+		return nil, errors.New("invalid refresh token")
+	}
+
+	user, err := s.userRepo.GetByID(ctx, session.UserID)
+	if err != nil {
+		return nil, errors.New("user not found")
+	}
+
+	if err := s.sessionStore.Delete(ctx, refreshToken); err != nil {
+		return nil, errors.New("failed to rotate session")
+	}
+
+	newRefreshToken, err := iam.GenerateOpaqueToken()
+	if err != nil {
+		return nil, err
+	}
+
+	newSession := &domain.Session{
+		UserID:    session.UserID,
+		Token:     newRefreshToken,
+		ExpiresAt: time.Now().Add(time.Duration(s.refreshExpireHours) * time.Hour),
+		IPAddress: session.IPAddress,
+		UserAgent: session.UserAgent,
+	}
+	if err := s.sessionStore.Create(ctx, newSession); err != nil {
+		return nil, err
+	}
+
+	accessToken, err := s.jwt.GenerateToken(user.PublicID)
+	if err != nil {
+		return nil, err
+	}
+
+	return &LoginOutput{
+		AccessToken:  accessToken,
+		RefreshToken: newRefreshToken,
+	}, nil
+}
+
+type LogoutInput struct {
+	PublicID       string
+	RefreshToken   string
+	JTI            string
+	TokenExpiresAt time.Time
+}
+
+func (s *IamService) Logout(ctx context.Context, input LogoutInput) error {
+	user, err := s.userRepo.GetByPublicID(ctx, input.PublicID)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	session, err := s.sessionStore.GetByToken(ctx, input.RefreshToken)
+	if err != nil {
+		return errors.New("invalid session")
+	}
+
+	if session.UserID != user.ID {
+		return errors.New("session does not belong to user")
+	}
+
+	if err := s.sessionStore.Delete(ctx, input.RefreshToken); err != nil {
+		return err
+	}
+
+	if input.JTI != "" {
+		ttl := time.Until(input.TokenExpiresAt)
+		if err := s.blocklist.Add(ctx, input.JTI, ttl); err != nil {
+			s.log.Warn("blocklist add failed", zap.String("jti", input.JTI), zap.Error(err))
+		}
+	}
+
+	return nil
 }

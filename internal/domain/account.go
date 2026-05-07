@@ -1,10 +1,10 @@
 package domain
 
 type Account struct {
-	ID         int64
-	UserID     int64
+	ID         int64  `json:"-"`
+	UserID     int64  `json:"-"`
 	AccountID  string
 	ProviderID string
-	Password   string
-	Salt       string
+	Password   string `json:"-"`
+	Salt       string `json:"-"`
 }

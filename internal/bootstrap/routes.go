@@ -12,11 +12,11 @@ type Modules struct {
 	User *user.Module
 }
 
-func RegisterRoutes(r router.Router, m Modules, jwt *iam.JWT) {
+func RegisterRoutes(r router.Router, m Modules, jwt *iam.JWT, bl iam.Blocklist) {
 	r.GET("/health", func(c router.Context) {
 		c.JSON(200, map[string]string{"status": "ok"})
 	})
 
-	m.Auth.RegisterRoutes(r)
-	m.User.RegisterRoutes(r, jwt)
+	m.Auth.RegisterRoutes(r, jwt, bl)
+	m.User.RegisterRoutes(r, jwt, bl)
 }

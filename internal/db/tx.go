@@ -26,7 +26,9 @@ func (m *pgxTxManager) WithTx(ctx context.Context, fn func(*Queries) error) erro
 	}
 
 	if err := fn(New(tx)); err != nil {
-		_ = tx.Rollback(ctx)
+		if rbErr := tx.Rollback(ctx); rbErr != nil {
+			return fmt.Errorf("tx failed: %w; rollback: %v", err, rbErr)
+		}
 		return err
 	}
 
