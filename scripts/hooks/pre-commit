@@ -1,0 +1,21 @@
+#!/bin/sh
+set -e
+
+cd "$(git rev-parse --show-toplevel)/service"
+
+echo "pre-commit: build..."
+go build ./...
+
+echo "pre-commit: vet..."
+go vet ./...
+
+echo "pre-commit: fmt..."
+unformatted=$(gofmt -l .)
+if [ -n "$unformatted" ]; then
+  echo ""
+  echo "The following files are not formatted — run: gofmt -w ."
+  echo "$unformatted"
+  exit 1
+fi
+
+echo "pre-commit: all checks passed."

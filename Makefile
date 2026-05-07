@@ -2,6 +2,7 @@
         migrate-up migrate-down migrate-force migrate-drop \
         sqlc \
         test test-race test-cover test-integration test-e2e \
+        install-hooks \
         cache-flush clean clean-all
 
 E2E_BASE_URL ?= http://localhost:3000
@@ -9,6 +10,14 @@ E2E_BASE_URL ?= http://localhost:3000
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-22s\033[0m %s\n", $$1, $$2}'
+
+# ── Git hooks ─────────────────────────────────────────────────────────────────
+
+install-hooks: ## Install git hooks (run once after cloning)
+	cp scripts/hooks/pre-commit ../.git/hooks/pre-commit
+	cp scripts/hooks/pre-push   ../.git/hooks/pre-push
+	chmod +x ../.git/hooks/pre-commit ../.git/hooks/pre-push
+	@echo "Git hooks installed."
 
 # ── Infrastructure ────────────────────────────────────────────────────────────
 
